@@ -1,0 +1,82 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.0.4'
+    id 'io.spring.dependency-management' version '1.1.0'
+    id 'com.bmuschko.docker-spring-boot-application' version '9.2.1'
+    id 'com.bmuschko.docker-remote-api' version '9.2.1'
+}
+
+import com.bmuschko.gradle.docker.tasks.container.*
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+docker {
+    springBootApplication {
+        baseImage = 'openjdk:17-alpine'
+        images = ['demotest:demo', 'test/demotest:demo']
+    }
+}
+
+task createContainer(type: DockerCreateContainer) {
+    dependsOn dockerBuildImage
+    targetImageId dockerBuildImage.getImageId()
+    hostConfig.portBindings = ['8080:8080']
+    hostConfig.autoRemove = true
+}
+
+task startContainer(type: DockerStartContainer) {
+    dependsOn createContainer
+    targetContainerId createContainer.getContainerId()
+}
+
+task logContainer(type: DockerLogsContainer, dependsOn: startContainer) {
+    targetContainerId startContainer.getContainerId()
+    follow = true
+    tailAll = true
+    onNext { message ->
+        // Each log message from the container will be passed as it's made available
+        logger.quiet message.toString()
+    }
+}
+
+task stopContainer(type: DockerStopContainer) {
+    targetContainerId createContainer.getContainerId()
+}
+
+//Executing Functional Tests Against a Running Container
+task createMyAppTestContainer(type: DockerCreateContainer) {
+    dependsOn dockerBuildImage
+    targetImageId dockerBuildImage.getImageId()
+    hostConfig.portBindings = ['8080:8080']
+    hostConfig.autoRemove = true
+}
+
+task startMyAppTestContainer(type: DockerStartContainer) {
+    dependsOn createMyAppTestContainer
+    targetContainerId createMyAppTestContainer.getContainerId()
+}
+
+task stopMyAppTestContainer(type: DockerStopContainer) {
+    targetContainerId createMyAppTestContainer.getContainerId()
+}
+
+task functionalTestMyApp(type: Test) {
+    dependsOn startMyAppTestContainer
+    finalizedBy stopMyAppTestContainer
+}

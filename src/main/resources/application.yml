@@ -1,0 +1,7 @@
+throttling:
+  limit: 2
+  durationInMinutes: 1
+
+logging:
+  level:
+    root: DEBUG
